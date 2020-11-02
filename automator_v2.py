@@ -126,7 +126,7 @@ def process_question():
     print(q_type)
     print("%d.%s"%(q_number, q_question))
     
-    for ans in node.findall(".//*[@resource-id='btnSelectTemplate']"):
+    for ans in node.findall(".//*[@resource-id='lblOptionContent']"):
         q_answers.append(Answer(ans))
         print(q_answers[-1])
 
@@ -249,8 +249,9 @@ if __name__ == "__main__":
         print("Errs: %s"%(repr(err_inject_lst)))
 
     r = invoke_adb_shell_cmd(("shell", "uiautomator dump"))
-    assert "UI hierchary dumped to:" in r
-    xml_path = r[r.find(":") + 1: r.find("<?")].strip()
+    sobj = re.search(r'UI hierchary dumped to:\s*(\S+)', r)
+    assert sobj
+    xml_path = sobj.group(1)
     print("UI dump path: %s"%xml_path)
 
     while True:
