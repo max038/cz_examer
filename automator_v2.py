@@ -13,7 +13,7 @@ import xml.etree.ElementTree as ET
 assert sys.version_info[0] == 3
 
 ADB_PATH = "adb"
-NEXT_BUTTON_POS = (900, 2150)   #TODO needs to change this if using another phone, extracted from uiautomatorviewer
+NEXT_BUTTON_POS = (900, 2150)   #TODO adapt this on other phone, extracted from uiautomatorviewer
 
 search_db = {
     "单选题":{},
@@ -28,7 +28,7 @@ for key in search_db:
 CORRECT_ANS_FILE = "correct.pkl"
 xml_path = None
 
-ERROR_INJECT_COUNT = 0          #TODO How many error is intended to be injected
+ERROR_INJECT_COUNT = 0          #TODO The number of errors to be injected
 err_inject_lst = []
 
 ans2idx = lambda x: "ABCDEF".index(x.upper()) + 1
