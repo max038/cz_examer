@@ -13,7 +13,7 @@ import xml.etree.ElementTree as ET
 assert sys.version_info[0] == 3
 
 ADB_PATH = "adb"
-NEXT_BUTTON_POS = (900, 2150)   #TODO adapt this on other phone, extracted from uiautomatorviewer
+NEXT_BUTTON_POS = (1100, 2200)   #TODO adapt this on other phone, extracted from uiautomatorviewer
 
 search_db = {
     "单选题":{},
@@ -256,5 +256,5 @@ if __name__ == "__main__":
 
     while True:
         if process_question():
-            #time.sleep(1.5)   # wait for UI refresh for exam
+            time.sleep(2)   # wait for UI refresh for exam
             pass
