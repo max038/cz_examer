@@ -30,6 +30,7 @@ xml_path = None
 
 ERROR_INJECT_COUNT = 0          #TODO The number of errors to be injected
 err_inject_lst = []
+last_q_number = None
 
 ans2idx = lambda x: "ABCDEF".index(x.upper()) + 1
 
@@ -102,6 +103,7 @@ def record_error(q_type, question, ans):
 
 def process_question():
     global err_inject_lst
+    global last_q_number
 
     xml = acquire_ui_xml()
 
@@ -120,6 +122,11 @@ def process_question():
         record_error(q_type, q_question, ans)
         do_tap(NEXT_BUTTON_POS)
         return True
+
+    if q_number == last_q_number:
+        print("waiting for UI refresh...[%d]"%q_number)
+        return False
+    last_q_number = q_number
 
     q_answers = []
 
@@ -256,5 +263,5 @@ if __name__ == "__main__":
 
     while True:
         if process_question():
-            time.sleep(2)   # wait for UI refresh for exam
+            #time.sleep(2)   # wait for UI refresh for exam
             pass
