@@ -244,6 +244,7 @@ if __name__ == "__main__":
     add_db_file("ganranke_1.xlsx", 2, 0, 1, 2)
     add_db_file("jinhumao.xls", 1, None, 1, 0)
     add_db_file("jianhushi.xlsx", 2, 0, 1, 2)
+    add_db_file("1.xlsx", 1, 0, 1, 2)
 
     print("Total\t%s"%(",".join(["%s:%d"%(s, len(search_db[s])) for s in search_db])))
 
