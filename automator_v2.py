@@ -51,7 +51,7 @@ def acquire_ui_xml():
 
 def parse_title_number(xml_root):
     txt = xml_root.findall(".//*[@resource-id='com.ruobilin.medical:id/framelayout']")[0][0][0].get("text")
-    return int(re.search(r"(\d+)\/100", txt).group(1))
+    return int(re.search(r"(\d+)\/\d+", txt).group(1))
 
 
 def parse_content(xml_root, number):
@@ -87,6 +87,10 @@ class Answer(object):
     def __str__(self):
         return "\t%s"%(self.text)
 
+def update_correct_db():
+    with open(CORRECT_ANS_FILE, "wb") as fout:
+        pickle.dump(correct_ans, fout)
+
 
 def record_error(q_type, question, ans):
     print("record correct ans for: %s|%s|%s"%(q_type, question, str(ans)))
@@ -95,10 +99,8 @@ def record_error(q_type, question, ans):
         raise RuntimeError("invalid ans(%s) for question %s"%(str(ans), question))
     if q_type == "判断题" and len(ans) != 1:
         raise RuntimeError("invalid ans(%s) for question %s"%(str(ans), question))
-    correct_ans[q_type][question] = ans
-
-    with open(CORRECT_ANS_FILE, "wb") as fout:
-        pickle.dump(correct_ans, fout)
+    correct_ans[q_type][question] = tuple(set(ans))
+    update_correct_db()
 
 
 def process_question():
@@ -139,9 +141,20 @@ def process_question():
 
     selection = do_search(q_type, q_question)
     if not selection:
-        print("Answer not found, use default")
+        print("Answer not found")
+        #sys.exit(0)
         selection = (1,)
-        record_error(q_type, q_question, (random.randint(1, len(q_answers)),))
+        record_error(q_type, q_question, selection)
+
+    if max(selection) > len(q_answers):
+        print("ans index out of range: {} - {}".format(q_question, selection))
+        if q_question in correct_ans[q_type]:
+            del correct_ans[q_type][q_question]
+            update_correct_db()
+            return False
+        elif q_question in search_db[q_type]:
+            selection = (1,)
+            record_error(q_type, q_question, selection)
 
     if q_number in err_inject_lst:
         print("Inject error ans: %d"%q_number)
@@ -158,6 +171,11 @@ def process_question():
 
 
 def do_search(q_type, question):
+    if question in correct_ans[q_type] and question in search_db[q_type]:
+        ans1 = correct_ans[q_type][question]
+        ans2 = search_db[q_type][question]
+        if list(ans1) != list(ans2):
+            print("multiple hit {} - {}".format(ans1, ans2))
     if question in correct_ans[q_type]:
         return correct_ans[q_type][question]
     if question in search_db[q_type]:
@@ -189,6 +207,8 @@ def parse_xls(path, skip_rows, question_type_col, question_col, answer_col):
                 q_type = "单选题"
             elif sheet_name == "多选":
                 q_type = "多选题"
+            elif sheet_name == "判断题":
+                q_type = "判断题"
             else:
                 raise RuntimeError("unsupport sheet(%d) name(%s)"%(i, sheet.name.strip()))
 
@@ -201,22 +221,23 @@ def parse_xls(path, skip_rows, question_type_col, question_col, answer_col):
             name = sheet.cell(row_num, question_col).value.strip()
             ans = sheet.cell(row_num, answer_col).value
 
+            if not name or isinstance(ans, str) and not ans:
+                continue
+
             if isinstance(ans, float) or isinstance(ans, int):
                 value = (int(ans),)
             elif isinstance(ans, str) and "," in ans:
-                value = [int(s) for s in ans.split(",") if s.strip()]
+                value = (int(s) for s in ans.split(",") if s.strip())
             elif isinstance(ans, str) and "、" in ans:
-                value = [int(s) for s in ans.split("、") if s.strip()]
+                value = (int(s) for s in ans.split("、") if s.strip())
             elif isinstance(ans, str) and re.match(r"[a-fA-F]+", ans.strip()):
-                value = []
-                for c in ans.strip():
-                    if c not in "ABCDEF":
-                        continue
-                    value.append(ans2idx(c))
+                value = (ans2idx(c) for c in ans.strip().upper() if c in "ABCDEF")
+            elif isinstance(ans, str) and ans in "是否":
+                value = ("是否".index(ans) + 1,)
             else:
                 raise RuntimeError("Unknown text from %s Sheet%d line%d: %s" % (path, i, row_num + 1, ans))
 
-            result[q_type][name] = value
+            result[q_type][name] = list(set(value))
             count += 1
         #print("Sheet%d found %d items"%(i, count))
     print("%s:\t%s"%(path, ", ".join(["%s:%d"%(s, len(result[s])) for s in result])))
@@ -228,12 +249,32 @@ def add_db_file(path, skip_rows, question_type_col, question_col, ans_col):
 
     def copy_rst(dst, src):
         for key in src:
+            if key in dst:
+                if dst[key] != src[key]:
+                    #print("duplicate: file[{}] {}: {} v.s. {}".format(path, key, dst[key], src[key]))
+                    pass
             dst[key] = src[key]
     
     copy_rst(search_db["单选题"], ret["单选题"])
     copy_rst(search_db["多选题"], ret["多选题"])
     copy_rst(search_db["判断题"], ret["判断题"])
 
+def cleanup_correct_db():
+    def cmp_tbl(tbl1, tbl2):
+        common_keys = filter(lambda x: x in tbl1, tbl2)
+        for key in sorted(common_keys):
+            ans1 = tuple(tbl1[key])
+            ans2 = tuple(tbl2[key])
+            if ans1 != ans2:
+                print("db cmp mismatch: {} - {} - {}".format(key, ans1, ans2))
+            else:
+                print("db cmp match: {} - {}".format(key, ans1))
+                del tbl1[key]
+
+    cmp_tbl(correct_ans["单选题"], search_db["单选题"])
+    cmp_tbl(correct_ans["多选题"], search_db["多选题"])
+    cmp_tbl(correct_ans["判断题"], search_db["判断题"])
+    update_correct_db()
 
 if __name__ == "__main__":
     if os.path.exists(CORRECT_ANS_FILE):
@@ -244,7 +285,10 @@ if __name__ == "__main__":
     add_db_file("ganranke_1.xlsx", 2, 0, 1, 2)
     add_db_file("jinhumao.xls", 1, None, 1, 0)
     add_db_file("jianhushi.xlsx", 2, 0, 1, 2)
-    add_db_file("1.xlsx", 1, 0, 1, 2)
+    add_db_file("jinhumao_new.xls",1, None, 1, 0)
+
+    #cleanup_correct_db()
+    #sys.exit(0)
 
     print("Total\t%s"%(",".join(["%s:%d"%(s, len(search_db[s])) for s in search_db])))
 
